@@ -7,13 +7,14 @@ import shutil
 import tarfile
 import nbformat
 import logging
+import mimetypes
 from pathlib import Path
 from traitlets.config import Config
 from nbconvert.writers import FilesWriter
 from nbconvert import SlidesExporter, MarkdownExporter
 from nbconvert.preprocessors import ExecutePreprocessor, CellExecutionError
 from azure.cosmos import CosmosClient
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, ContentSettings
 import azure.functions as func
 
 
@@ -38,14 +39,14 @@ def main(msg: func.QueueMessage) -> None:
         return b
 
     database = CosmosClient.from_connection_string(
-        os.environ['manimbooksdata_DOCUMENTDB']).get_database_client('books')
+        os.environ['manimbookupload_COSMOSDB']).get_database_client('books')
     db_container = database.get_container_client('bookData')
-    blob = BlobServiceClient.from_connection_string(
+    blob_service = BlobServiceClient.from_connection_string(
         os.environ['AzureWebJobsStorage'])
     HOME_DIR = os.path.dirname(os.path.realpath(__file__))
     script_dir = HOME_DIR + "/convert"
     bookId = msg.get_body().decode('utf-8')
-    folder = HOME_DIR + "/temp/" + bookId + "/read"
+    folder = HOME_DIR + "/temp/" + bookId
 
     if not (os.path.isdir(folder)):
         os.makedirs(folder, exist_ok=True)
@@ -60,7 +61,7 @@ def main(msg: func.QueueMessage) -> None:
     book = item['bookName']
     author = item['author']
     cover_name = item['cover']
-    container = blob.get_container_client(bookId)
+    container = blob_service.get_container_client(bookId)
     blob_list = container.list_blobs()
 
     def changestatus(status):
@@ -101,18 +102,16 @@ def main(msg: func.QueueMessage) -> None:
     c.FilesWriter.build_directory = f"{script_dir}/.cache/{bookId}"
 
     # initialize cache output folder
-    if not os.path.exists(f"{script_dir}/.cache/"):
-        os.mkdir(f"{script_dir}/.cache/")
     if not os.path.exists(c.FilesWriter.build_directory):
-        os.mkdir(c.FilesWriter.build_directory)
+        os.makedirs(c.FilesWriter.build_directory, exist_ok=True)
 
     chapters = []
 
     i = 1
     for notebook in dir_to_list(get_path(folder)):
+        dct = {}
         if notebook['name'].rsplit('.', 1)[1].lower() != 'ipynb':
             continue
-        dct = {}
         os.chdir(c.FilesWriter.build_directory)
         changestatus("Converting " + notebook['name'])
         shutil.copy2(notebook['path'], c.FilesWriter.build_directory)
@@ -128,7 +127,7 @@ def main(msg: func.QueueMessage) -> None:
         except CellExecutionError as e:
             changestatus("Error in " + notebook['name'])
             logging.error(
-                "Error in " + notebook['name'] + e, exc_info=True)
+                "Error in " + notebook['name'], exc_info=True)
             return False
 
         # convert the notebook to slides
@@ -140,14 +139,14 @@ def main(msg: func.QueueMessage) -> None:
 
         # convert the notebook to markdown, copy it to texme html template
         shutil.copy2(f"{script_dir}/templates/scroll.html",
-                     f"{filename}.html")
+                     f"{c.FilesWriter.build_directory}/{filename}.html")
         scroll = MarkdownExporter(config=c)
         (output, resources) = scroll.from_notebook_node(nb)
         fw = FilesWriter(config=c)
         fw.write(output, resources, notebook_name=filename)
-        with open(f"{filename}.md", "r") as f, open(f"{filename}.html", "a+") as g:
+        with open(f"{c.FilesWriter.build_directory}/{filename}.md", "r") as f, open(f"{c.FilesWriter.build_directory}/{filename}.html", "a+") as g:
             g.write(f.read())
-            os.remove(f"{filename}.md")
+            os.remove(f"{c.FilesWriter.build_directory}/{filename}.md")
         dct['md'] = filename + ".html"
         chapters.append(dct)
 
@@ -160,36 +159,40 @@ def main(msg: func.QueueMessage) -> None:
         "cover": cover_name
     }
     open("index.json", "w").write(json.dumps(index, indent=4))
-    # create tarball
-    os.chdir(get_path(f"{c.FilesWriter.build_directory}") + "/../..")
+    shutil.copy2(script_dir + '/templates/index.html',
+                 f"{c.FilesWriter.build_directory}/index.html")
 
     def make_tarfile(output_filename, source_dir):
         with tarfile.open(output_filename, "w:gz") as tar:
             tar.add(source_dir, arcname=os.path.basename(source_dir))
         tar.close()
 
+    os.chdir(c.FilesWriter.build_directory)
     changestatus("Creating book")
-    make_tarfile(f"{book}.mbook", f"./.cache/{bookId}")
+    make_tarfile(f"{book}.mbook", "./")
     shutil.move(f"{book}.mbook", folder)
     file = tarfile.open(f"{folder}/{book}.mbook")
     file.extractall(folder)
-    shutil.rmtree(f"./.cache/{bookId}")
+    shutil.rmtree(f"{script_dir}/.cache/")
 
-    path_remove = HOME_DIR + "/temp/" + bookId
+    path_remove = HOME_DIR + "/temp/"
+    webcontainer = blob_service.get_container_client("$web")
     for r, d, f in os.walk(folder):
         if f:
             for file in f:
                 file_path_on_azure = os.path.join(
-                    r, file).replace(path_remove, "")
+                    r, file).replace(path_remove, "read/")
                 file_path_on_local = os.path.join(r, file)
-
-                blob_client = container.get_blob_client(
+                blob_client = webcontainer.get_blob_client(
                     file_path_on_azure)
-
                 with open(file_path_on_local, 'rb') as data:
-                    blob_client.upload_blob(data)
+                    m = mimetypes.guess_type(file_path_on_local)[0]
+                    content_settings = ContentSettings(
+                        content_type=m)
+                    blob_client.upload_blob(
+                        data, content_settings=content_settings)
     changestatus("Cleaning Up")
-    shutil.rmtree(HOME_DIR + "/temp/" + bookId)
+    shutil.rmtree(HOME_DIR + "/temp/")
     changestatus("Done")
 
     return

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ManimBook</title>
+    <script defer>
+      function openNav() {
+        document.querySelector(".sidenav").style.width = "50%";
+        document.querySelector(".drawer").style.transform = "rotate(180deg)";
+        document.querySelector(".drawer").setAttribute("onclick", "closeNav()");
+        document.querySelector(".chapters").style.display = "flex";
+      }
+
+      function closeNav() {
+        document.querySelector(".sidenav").style.width = "5rem";
+        document.querySelector(".chapters").style.display = "none";
+        document.querySelector(".drawer").style.transform = "rotate(0deg)";
+        document.querySelector(".drawer").setAttribute("onclick", "openNav()");
+      }
+
+      function zoomin() {
+        frame = document.querySelector("iframe");
+        message = JSON.stringify({ type: "zoom", value: "in" });
+        frame.contentWindow.postMessage(message, "*");
+      }
+      function zoomout() {
+        frame = document.querySelector("iframe");
+        message = JSON.stringify({ type: "zoom", value: "out" });
+        frame.contentWindow.postMessage(message, "*");
+      }
+      function reset() {
+        frame = document.querySelector("iframe");
+        message = JSON.stringify({ type: "zoom", value: "reset" });
+        frame.contentWindow.postMessage(message, "*");
+      }
+      function moveEyes(e) {
+        leftEye = document.querySelector("#leftEye");
+        rightEye = document.querySelector("#rightEye");
+        leftPupil = document.querySelector("#leftPupil");
+        rightPupil = document.querySelector("#rightPupil");
+        mouth = document.querySelector("#mouth");
+        var t =
+            e.pageX ||
+            (null != e.touches && e.touches.length && e.touches[0].pageX),
+          n =
+            e.pageY ||
+            (null != e.touches && e.touches.length && e.touches[0].pageY),
+          r = leftEye.getBoundingClientRect(),
+          i = rightEye.getBoundingClientRect(),
+          o = r.x + r.width / 2,
+          s = r.y + window.scrollY + r.height / 2,
+          c = i.x + i.width / 2,
+          l = i.y + window.scrollY + i.height / 2,
+          u = Math.atan2(n - s, t - o),
+          h = Math.atan2(n - l, t - c),
+          p = Math.sqrt((n - s) * (n - s) + (t - o) * (t - o)),
+          d = Math.sqrt((n - l) * (n - l) + (t - c) * (t - c)),
+          f = r.y + window.scrollY + r.height - r.width / 2,
+          m = i.y + window.scrollY + i.height - i.width / 2;
+
+        (pokingLeftEye = Math.sqrt((n - f) * (n - f) + (t - o) * (t - o)) < 10),
+          (pokingRightEye =
+            Math.sqrt((n - m) * (n - m) + (t - c) * (t - c)) < 10),
+          leftPupil.setAttribute(
+            "transform",
+            "translate(" +
+              (Math.cos(u) * Math.min(12, p) - 8) +
+              "," +
+              Math.min(Math.sin(u) * Math.min(10, p) + 7, 12) +
+              ")"
+          ),
+          rightPupil.setAttribute(
+            "transform",
+            "translate(" +
+              (Math.cos(h) * Math.min(12, d) - 8) +
+              "," +
+              Math.min(Math.sin(h) * Math.min(10, d) + 7, 12) +
+              ")"
+          ),
+          pokingLeftEye
+            ? (leftEye.style.transform = "translate(0, 30px) scale(1, 0)")
+            : (leftEye.style.transform = "translate(0, 0) scale(1, 1)"),
+          pokingRightEye
+            ? (rightEye.style.transform = "translate(0, 30px) scale(1, 0)")
+            : (rightEye.style.transform = "translate(0, 0) scale(1, 1)"),
+          mouth &&
+            (pokingLeftEye || pokingRightEye
+              ? mouth.setAttribute(
+                  "d",
+                  "M150.65,55c5.5-1.4,7.9-3.9,13.5-4,6.9-.1,9.5,1.8,12.7,2.8l-.3-3.1c-3.4-1.3-6.3-2.8-11.7-2.8-3.9,0-8.6,1.6-14.6,4"
+                )
+              : mouth.setAttribute(
+                  "d",
+                  "M150.65,53.43c5.53,0,1.93.07,13.51,0,10.31,0,12.42-.09,15.7-.15,0,0-.27-3.11-.27-3.11-3.67.06-9.31.18-14.71.18-3.86,0-8.54,0-14.57,0"
+                ));
+      }
+      function blink(e) {
+        Math.random() < 0.3 &&
+          ((leftEye.style.transform = "translate(0, 30px) scale(1, 0)"),
+          (rightEye.style.transform = "translate(0, 30px) scale(1, 0)"),
+          window.setTimeout(function () {
+            (leftEye.style.transform = "translate(0, 0) scale(1, 1)"),
+              (rightEye.style.transform = "translate(0, 0) scale(1, 1)");
+          }, 100));
+      }
+      window.addEventListener("message", function (e) {
+        data = JSON.parse(e.data);
+        moveEyes(data);
+      });
+      window.setInterval(blink, 2e3);
+
+      fetch("index.json").then(async (resp) => {
+        const book_data = await resp.json();
+        function changeframe(f) {
+          container.src = f;
+        }
+        const container = document.querySelector("iframe");
+        container.src = book_data.chapters[0].md;
+        for (const file of book_data.chapters) {
+          files = book_data.chapters;
+          chapter = document.createElement("li");
+          chapter.innerText = file.name;
+          chapter.onclick = () => {
+            changeframe(file.md);
+            current_ch = files.indexOf(file);
+            drop_btn.innerText = file.name;
+          };
+          document.querySelector(".chapters").appendChild(chapter);
+        }
+        document.getElementById("next").onclick = next_ch;
+        document.getElementById("prev").onclick = prev_ch;
+        current_ch = 0;
+        function next_ch() {
+          current_ch++;
+          if (current_ch >= files.length) {
+            current_ch = 0;
+          }
+          changeframe(files[current_ch].md);
+        }
+        function prev_ch() {
+          current_ch--;
+          if (current_ch < 0) {
+            current_ch = files.length - 1;
+          }
+          changeframe(files[current_ch].md);
+        }
+        present_btn = document.querySelector("#present");
+        present_btn.onclick = present;
+        function present() {
+          container.src = files[current_ch].slides;
+          present_btn.onclick = read;
+          document.getElementById("open_present").style.display = "none";
+          document.getElementById("close_present").style.display = "block";
+        }
+        function read() {
+          container.src = files[current_ch].md;
+          present_btn.onclick = present;
+          document.getElementById("open_present").style.display = "block";
+          document.getElementById("close_present").style.display = "none";
+        }
+        randy = document.querySelector("#randy");
+        randy_btn = document.querySelector("#randy_btn");
+        randy_btn.onclick = close_randy;
+        function open_randy() {
+          randy.style.display = "block";
+          randy_btn.onclick = close_randy;
+        }
+        function close_randy() {
+          randy.style.display = "none";
+          randy_btn.onclick = open_randy;
+        }
+
+        fullscreen = document.querySelector("#fullscreen");
+        fullscreen.onclick = openFullscreen;
+        var elem = document.documentElement;
+        /* View in fullscreen */
+        function openFullscreen() {
+          if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+          } else if (elem.webkitRequestFullscreen) {
+            /* Safari */
+            elem.webkitRequestFullscreen();
+          } else if (elem.msRequestFullscreen) {
+            /* IE11 */
+            elem.msRequestFullscreen();
+          }
+          document.getElementById("open_fl").style.display = "none";
+          document.getElementById("close_fl").style.display = "block";
+          fullscreen.onclick = closeFullscreen;
+        }
+
+        /* Close fullscreen */
+        function closeFullscreen() {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            /* Safari */
+            document.webkitExitFullscreen();
+          } else if (document.msExitFullscreen) {
+            /* IE11 */
+            document.msExitFullscreen();
+          }
+          document.getElementById("open_fl").style.display = "block";
+          document.getElementById("close_fl").style.display = "none";
+          fullscreen.onclick = openFullscreen;
+        }
+      });
+    </script>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+      main {
+        height: 100%;
+        width: calc(100% - 5rem);
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: #111;
+        transition: 0.5s;
+        margin-left: 5rem;
+        z-index: 0;
+      }
+      .sidenav {
+        height: 100%;
+        width: 5rem;
+        position: fixed;
+        z-index: 1;
+        top: 0;
+        left: 0;
+        overflow-x: hidden;
+        transition: 0.5s;
+        background-color: rgb(39, 30, 59);
+      }
+      .sidenav .controls {
+        height: 100%;
+        width: 3.5rem;
+        right: 0;
+        position: absolute;
+        justify-content: center;
+        background-color: rgb(10, 10, 10);
+        align-items: center;
+      }
+      .controls .btn {
+        display: flex;
+        height: 10%;
+        width: 100%;
+        flex-direction: row;
+        position: relative;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        opacity: 0.5;
+        transition: 0.3s;
+      }
+      .btn svg {
+        transform: scale(0.7);
+      }
+      .arrow {
+        height: 25% !important;
+        background-color: #000;
+      }
+      .arrow:hover {
+        opacity: 1;
+        background-color: rgb(10, 10, 10);
+      }
+      .drawer {
+        height: 100%;
+        position: absolute;
+        top: 0;
+        width: 1.5rem;
+        z-index: 3;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        transition: 0.5s;
+      }
+      .drawer svg {
+        width: 1.5rem;
+      }
+      .chapters {
+        display: none;
+        list-style: none;
+        flex-direction: column;
+        gap: 0.5rem;
+        height: 70vh;
+        overflow-y: scroll;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        width: 80%;
+      }
+      /* change scrollbar style of .chapters */
+      .chapters::-webkit-scrollbar {
+        width: 0.5rem;
+      }
+      .chapters::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0);
+        border-radius: 0.5rem;
+      }
+      .chapters::-webkit-scrollbar-thumb {
+        background: rgb(25, 19, 39);
+        border-radius: 0.5rem;
+      }
+      .chapters::-webkit-scrollbar-thumb:hover {
+        background: rgb(0, 0, 0);
+      }
+      .chapters li {
+        border-radius: 0.5rem;
+        width: calc(75%-3rem);
+        background-color: rgba(255, 255, 255, 0.281);
+        transition: 0.3s;
+        padding: 1rem;
+      }
+      .btn:hover {
+        opacity: 1;
+      }
+      .book {
+        position: relative;
+        display: inline-block;
+        width: 40%;
+        background-color: #333;
+        z-index: 100;
+        height: 100%;
+      }
+      .slides {
+        display: none;
+      }
+      #randy {
+        display: block;
+        position: fixed;
+        bottom: 1em;
+        right: 0;
+        width: 15%;
+        z-index: 10;
+      }
+      .white {
+        fill: rgb(255, 255, 255);
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        -webkit-user-select: none; /* Safari */
+        -ms-user-select: none; /* IE 10 and IE 11 */
+        user-select: none; /* Standard syntax */
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidenav">
+      <div class="drawer" onclick="openNav()">
+        <svg
+          viewBox="0 0 24 24"
+          stroke-width="2.05"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          color="#000000"
+        >
+          <path
+            d="M13 6l6 6-6 6M5 6l6 6-6 6"
+            stroke="#ffffff"
+            stroke-width="2.05"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+      </div>
+      <div class="controls">
+        <div id="prev" class="btn arrow" onclick="prev_ch()">
+          <svg
+            stroke-width="2.05"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            color="#000000"
+          >
+            <path
+              d="M12.25 18.5V6m0 0l-6 6m6-6l6 6"
+              stroke="#ffffff"
+              stroke-width="2.05"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
+        </div>
+        <div id="next" class="btn arrow" onclick="next_ch()">
+          <svg
+            stroke-width="2.05"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            color="#000000"
+          >
+            <path
+              d="M12.25 5.5V18m0 0l-6-6m6 6l6-6"
+              stroke="#ffffff"
+              stroke-width="2.05"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
+        </div>
+        <div class="btn zoom" onclick="zoomin()">
+          <svg
+            stroke-width="2.05"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            color="#000000"
+          >
+            <path
+              d="M9 11h2m2 0h-2m0 0V9m0 2v2M16 16l4 4M4 11a7 7 0 1014 0 7 7 0 00-14 0z"
+              stroke="#ffffff"
+              stroke-width="2.05"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
+        </div>
+        <div class="btn zoom" onclick="zoomout()">
+          <svg
+            stroke-width="2.05"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            color="#000000"
+          >
+            <path
+              d="M9 11h4M16 16l4 4M4 11a7 7 0 1014 0 7 7 0 00-14 0z"
+              stroke="#ffffff"
+              stroke-width="2.05"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
+        </div>
+        <div id="present" class="btn">
+          <svg
+            id="open_present"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="#ffffff"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605"
+            />
+          </svg>
+          <svg
+            id="close_present"
+            display="none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="#ffffff"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+            />
+          </svg>
+        </div>
+        <div id="randy_btn" class="btn">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            xml:space="preserve"
+            viewBox="0 0 7.21561 5.75639"
+          >
+            <g id="Layer_x0020_1">
+              <metadata id="CorelCorpID_0Corel-Layer" />
+              <path
+                fill="#ffffff"
+                d="M3.37946 0.704598l1.47444 0c-0.352299,1.46139 -0.574116,2.4139 -0.574116,3.45775 0,0.182674 0,1.59404 0.534973,1.59404 0.274009,0 0.508875,-0.25009 0.508875,-0.471907 0,-0.065241 0,-0.0913388 -0.0913351,-0.287058 -0.352299,-0.900321 -0.352299,-2.02246 -0.352299,-2.11379 0,-0.0782899 0,-1.00471 0.274009,-2.17904l1.46139 0c0.169629,0 0.600214,0 0.600214,-0.41754 0,-0.287058 -0.247915,-0.287058 -0.482781,-0.287058l-4.29283 0c-0.300103,0 -0.743741,0 -1.34396,0.639357 -0.33925,0.378393 -0.75679,1.06995 -0.75679,1.14823 0,0.0782899 0.065241,0.104388 0.143531,0.104388 0.0913351,0 0.104384,-0.0391468 0.169625,-0.117433 0.6785,-1.06995 1.357,-1.06995 1.68321,-1.06995l0.743745 0c-0.287062,0.978607 -0.613263,2.11379 -1.68321,4.39721 -0.104384,0.208768 -0.104384,0.234866 -0.104384,0.313156 0,0.276184 0.234866,0.341425 0.352299,0.341425 0.378397,0 0.482781,-0.341425 0.639357,-0.889447 0.208772,-0.665455 0.208772,-0.691549 0.33925,-1.21347l0.75679 -2.94887z"
+              />
+            </g>
+          </svg>
+        </div>
+        <div id="fullscreen" class="btn">
+          <svg
+            id="open_fl"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="#ffffff"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"
+            />
+          </svg>
+          <svg
+            id="close_fl"
+            display="none"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="#ffffff"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"
+            />
+          </svg>
+        </div>
+      </div>
+      <div
+        href="javascript:void(0)"
+        class="closebtn"
+        onclick="closeNav()"
+      ></div>
+      <div>
+        <ul class="chapters"></ul>
+      </div>
+    </nav>
+    <div id="randy">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300.22 281.9">
+        <defs>
+          <linearGradient id="linus-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color: rgb(255, 255, 255)"></stop>
+            <stop offset="100%" style="stop-color: rgb(190, 190, 190)"></stop>
+          </linearGradient>
+        </defs>
+        <g
+          id="leftEye"
+          class="eyeball"
+          style="transition-property: transform; transition-duration: 100ms"
+        >
+          <path
+            class="white"
+            d="M155.89,19 a19,19,0,0,1-3.74,11.35l-30.38.29 a18.17,18.17,0,0,1-4-11.64,19,19,0,0,1,38.09,0Z"
+          ></path>
+          <path
+            id="leftPupil"
+            d="M142.28,4.21 a2.53,2.53,0,1,0,.17,0h-.17l2.92-1 a7.71,7.71,0,1,1-7.71,7.71,7.71,7.71,0,0,1,7.71-7.71"
+            transform="translate(-16.625287446839156,12)"
+          ></path>
+        </g>
+        <g
+          id="rightEye"
+          class="eyeball"
+          style="transition-property: transform; transition-duration: 100ms"
+        >
+          <path
+            class="white"
+            d="M210.89,19 a19,19,0,0,1-3.74,11.35l-30.38.29 a18.17,18.17,0,0,1-4-11.64,19,19,0,0,1,38.09,0Z"
+          ></path>
+          <path
+            id="rightPupil"
+            d="M197.28,4.21 a2.53,2.53,0,1,0,.17,0h-.17l2.92-1 a7.71,7.71,0,1,1-7.71,7.71,7.71,7.71,0,0,1,7.71-7.71"
+            transform="translate(-17.08578741955014,12)"
+          ></path>
+        </g>
+        <g>
+          <path
+            d="M196.41,61.43H132 c15.38,63.8,25.07,105.39,25.07,151,0,8,0,69.5-23.36,69.5-12, 0-22.22-10.83-22.22-20.51,0-2.85,0-4,4-12.53,15.38-39.31, 15.38-88.31,15.38-92.29,0-3.42,0-43.87-12-95.14H85.13c-7.4, 0-23.54,13.12-23.54-5.11,0-12.53,8.16-25.65,18.41-25.65H237.43 c13.1,0,28.27,12.91,29.94,35.38,1.14,15.25-6.27,30.21-29.64, 30.6-22.58.37-37.1-6.42-57.91-14.63-3.71-1.46-10.85-14.32-7.29 -11.66C187.59,81.6,240.12,82.54,242,61.43H209.52c12.53,42.73, 26.77,92.29,73.49,192,4.55,9.12,4.55,10.26,4.55,13.68,0,12-10.25, 14.81-15.38,14.81-16.52,0-21.08-14.81-27.91-38.74-9.12-29.06 -9.12-30.19-14.81-53L196.41,61.43"
+            style="fill: rgb(88, 196, 221)"
+          ></path>
+          <path
+            id="mouth"
+            d="M150.65,53.43c5.53,0,1.93.07,13.51,0,10.31,0,12.42-.09,15.7-.15,0,0-.27-3.11-.27-3.11-3.67.06-9.31.18-14.71.18-3.86,0-8.54,0-14.57,0"
+          ></path>
+        </g>
+      </svg>
+    </div>
+    <main>
+      <iframe id="frame" frameborder="0"></iframe>
+    </main>
+  </body>
+</html>

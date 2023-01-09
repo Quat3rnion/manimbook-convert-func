@@ -15,12 +15,13 @@ RUN apt-get update -qq \
         pkg-config \
         make \
         wget \
-        ghostscript
+        libmagic1 \
+        ghostscript 
 
 # setup a minimal texlive installation
-COPY docker/texlive-profile.txt /tmp/
+COPY texlive-profile.txt /tmp/
 ENV PATH=/usr/local/texlive/bin/armhf-linux:/usr/local/texlive/bin/aarch64-linux:/usr/local/texlive/bin/x86_64-linux:$PATH
-RUN wget -O /tmp/install-tl-unx.tar.gz http://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz && \
+RUN wget --no-check-certificate -O /tmp/install-tl-unx.tar.gz http://mirror.ctan.org/systems/texlive/tlnet/install-tl-unx.tar.gz && \
     mkdir /tmp/install-tl && \
     tar -xzf /tmp/install-tl-unx.tar.gz -C /tmp/install-tl --strip-components=1 && \
     /tmp/install-tl/install-tl --profile=/tmp/texlive-profile.txt \
@@ -29,8 +30,6 @@ RUN wget -O /tmp/install-tl-unx.tar.gz http://mirror.ctan.org/systems/texlive/tl
         fontspec frcursive fundus-calligra gnu-freefont jknapltx latex-bin \
         mathastext microtype ms physics preview ragged2e relsize rsfs \
         setspace standalone tipa wasy wasysym xcolor xetex xkeyval
-
-RUN python -m pip install manim nbconvert jupyter jupyterlab notebook
 
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
     AzureFunctionsJobHost__Logging__Console__IsEnabled=true

@@ -6,4 +6,11 @@ azure-functions
 azure-cosmos
 azure-storage-blob
 nbformat
-nbformat
+nbconvert
+ipykernel
+jupyter
+jupyterlab
+notebook
+manim
+virtualenv
+numpy
